@@ -6,8 +6,7 @@ const ICON_PATHS = {
   cc: 'M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V6h14v12zM7 15h3c.55 0 1-.45 1-1v-1H9.5v.5h-2v-3h2v.5H11v-1c0-.55-.45-1-1-1H7c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm7 0h3c.55 0 1-.45 1-1v-1h-1.5v.5h-2v-3h2v.5H18v-1c0-.55-.45-1-1-1h-3c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1z',
   check: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
   chevron: 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z',
-  spinner: 'M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z',
-  warning: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z'
+  spinner: 'M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z'
 };
 
 export type IconName = keyof typeof ICON_PATHS;
@@ -37,11 +36,9 @@ export function createElement<K extends keyof HTMLElementTagNameMap>(
 }
 
 export const STRINGS = {
-  copied: 'Copied!',
   noCaptions: 'No Captions',
   noCaptionsToast: 'No captions available for this video.',
   copiedToast: 'Captions copied to clipboard!',
-  loading: 'Loading...',
   words: 'words',
   autoBadge: 'Auto',
   formatTitle: 'Format',
@@ -87,6 +84,7 @@ export interface CaptionButtonOptions {
 const MENU_GAP = 4;
 const VIEWPORT_MARGIN = 8;
 const LABEL_RESET_MS = 2500;
+const TOOLTIP_GAP = 16;
 
 export function hasMenuOptions(model: Pick<MenuModel, 'formats' | 'showLanguages' | 'tracks'>): boolean {
   return model.formats.length > 1 || (model.showLanguages && model.tracks.length > 1);
@@ -98,6 +96,9 @@ export class CaptionButton {
   private readonly iconEl: HTMLElement;
   private readonly labelEl: HTMLElement;
   private readonly menu: HTMLElement;
+  private readonly tooltip: HTMLElement;
+  private tooltipTarget: HTMLElement | null = null;
+  private disabledReason = '';
   private label: string;
   private busy = false;
   private labelTimer: ReturnType<typeof setTimeout> | undefined;
@@ -109,11 +110,9 @@ export class CaptionButton {
     this.labelEl = createElement('span', 'yt-caption-copier-label', this.label);
 
     const mainBtn = createElement('button', 'yt-caption-copier-main-btn', this.iconEl, this.labelEl);
-    mainBtn.title = 'Copy captions to clipboard';
     mainBtn.setAttribute('aria-label', 'Copy captions');
 
     const chevronBtn = createElement('button', 'yt-caption-copier-chevron-btn', createIcon('chevron', 16));
-    chevronBtn.title = 'Caption options and formats';
     chevronBtn.setAttribute('aria-label', 'Caption options');
 
     this.pill = createElement('div', 'yt-caption-copier-pill', mainBtn, createElement('div', 'yt-caption-copier-divider'), chevronBtn);
@@ -126,6 +125,16 @@ export class CaptionButton {
     this.menu.className = 'yt-caption-copier-menu';
     this.menu.setAttribute('role', 'menu');
     document.body.appendChild(this.menu);
+
+    this.tooltip = createElement('div', 'yt-caption-copier-tooltip');
+    this.tooltip.setAttribute('role', 'tooltip');
+    document.body.appendChild(this.tooltip);
+
+    this.bindTooltip(mainBtn, () => 'Copy captions to clipboard');
+    this.bindTooltip(chevronBtn, () => 'Caption options and formats');
+    this.bindTooltip(wrapper, () => this.disabledReason);
+    this.bindTouchFeedback(mainBtn);
+    this.bindTouchFeedback(chevronBtn);
 
     mainBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -163,7 +172,8 @@ export class CaptionButton {
 
   setDisabled(disabled: boolean, reason = ''): void {
     this.element.classList.toggle('disabled', disabled);
-    this.element.title = disabled ? reason : '';
+    this.disabledReason = disabled ? reason : '';
+    this.hideTooltip();
     this.element.querySelectorAll('button').forEach((b) => {
       b.disabled = disabled;
     });
@@ -176,15 +186,14 @@ export class CaptionButton {
     this.pill.classList.remove('copied');
     this.iconEl.replaceChildren(createIcon('spinner'));
     this.iconEl.classList.add('spinning');
-    this.labelEl.textContent = STRINGS.loading;
   }
 
   setCopied(): void {
     this.busy = false;
     this.pill.classList.add('copied');
     this.iconEl.classList.remove('spinning');
-    this.iconEl.replaceChildren(createIcon('check'));
-    this.labelEl.textContent = STRINGS.copied;
+    this.iconEl.replaceChildren(createIcon('check', 24, 'yt-caption-copier-pop'));
+    this.labelEl.textContent = this.label;
     this.scheduleReset();
   }
 
@@ -217,7 +226,60 @@ export class CaptionButton {
     window.removeEventListener('scroll', this.onReposition, { capture: true });
     window.removeEventListener('resize', this.onReposition);
     this.menu.remove();
+    this.tooltip.remove();
     this.element.remove();
+  }
+
+  private bindTooltip(target: HTMLElement, getText: () => string): void {
+    target.addEventListener('mouseenter', () => {
+      const text = getText();
+      if (text) this.showTooltip(target, text);
+    });
+    target.addEventListener('mouseleave', () => {
+      if (this.tooltipTarget === target) this.hideTooltip();
+    });
+    target.addEventListener('pointerdown', () => this.hideTooltip());
+  }
+
+  private showTooltip(target: HTMLElement, text: string): void {
+    this.tooltipTarget = target;
+    this.tooltip.textContent = text;
+    const rect = target.getBoundingClientRect();
+    const { offsetWidth: width, offsetHeight: height } = this.tooltip;
+    const maxLeft = window.innerWidth - width - VIEWPORT_MARGIN;
+    const left = Math.max(VIEWPORT_MARGIN, Math.min(rect.left + (rect.width - width) / 2, maxLeft));
+    const fitsBelow = rect.bottom + TOOLTIP_GAP + height <= window.innerHeight - VIEWPORT_MARGIN;
+    const top = fitsBelow ? rect.bottom + TOOLTIP_GAP : rect.top - TOOLTIP_GAP - height;
+    this.tooltip.style.left = `${Math.round(left)}px`;
+    this.tooltip.style.top = `${Math.round(top)}px`;
+    this.tooltip.classList.add('visible');
+  }
+
+  private hideTooltip(): void {
+    this.tooltipTarget = null;
+    this.tooltip.classList.remove('visible');
+  }
+
+  private bindTouchFeedback(button: HTMLElement): void {
+    const feedback = createElement('span', 'yt-caption-copier-feedback');
+    feedback.setAttribute('aria-hidden', 'true');
+    button.appendChild(feedback);
+
+    const release = () => {
+      if (!feedback.classList.contains('down')) return;
+      feedback.classList.remove('down', 'up');
+      void feedback.offsetWidth;
+      feedback.classList.add('up');
+    };
+    button.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      feedback.classList.remove('up');
+      feedback.classList.add('down');
+    });
+    button.addEventListener('pointerup', release);
+    button.addEventListener('pointerleave', release);
+    button.addEventListener('pointercancel', release);
+    feedback.addEventListener('animationend', () => feedback.classList.remove('up'));
   }
 
   private scheduleReset(): void {
@@ -329,6 +391,7 @@ export class CaptionButton {
   };
 
   private readonly onReposition = (): void => {
+    this.hideTooltip();
     if (this.isMenuOpen()) this.positionMenu();
   };
 }

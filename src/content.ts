@@ -1,4 +1,4 @@
-import { CaptionButton, STRINGS, createElement, createIcon, hasMenuOptions, type MenuModel } from './caption-button';
+import { CaptionButton, STRINGS, createElement, hasMenuOptions, type MenuModel } from './caption-button';
 import {
   MSG,
   getDefaultSettings,
@@ -25,8 +25,6 @@ interface CaptionItem {
 interface Json3Captions {
   events?: { tStartMs?: number; dDurationMs?: number; segs?: { utf8?: string }[] }[];
 }
-
-type ToastType = 'warning' | null;
 
 const TRACKS_TIMEOUT_MS = 1500;
 const CONTENT_TIMEOUT_MS = 15000;
@@ -381,22 +379,22 @@ async function handleCopyCaptions(formatOverride: CaptionFormat | null = null, t
 
   const result = await buildCaptionText(formatOverride, trackOverrideIndex);
   if (!result.ok) {
-    showToast(result.message, 'warning');
+    showToast(result.message);
     button?.setMessage(result.reason === 'error' ? STRINGS.error : STRINGS.noCaptions);
     return;
   }
 
   if (!(await copyToClipboard(result.text))) {
-    showToast(STRINGS.errorPrefix + 'Failed to write to clipboard', 'warning');
+    showToast(STRINGS.errorPrefix + 'Failed to write to clipboard');
     button?.setMessage(STRINGS.error);
     return;
   }
 
   button?.setCopied();
-  showToast(STRINGS.copiedToast, null, `${result.trackName} • ${result.wordCount.toLocaleString()} ${STRINGS.words}`);
+  showToast(STRINGS.copiedToast, `${result.trackName} • ${result.wordCount.toLocaleString()} ${STRINGS.words}`);
 }
 
-function showToast(message: string, type: ToastType = null, meta: string | null = null): void {
+function showToast(message: string, meta: string | null = null): void {
   let toast = document.getElementById('yt-caption-copier-toast');
   if (!toast) {
     toast = document.createElement('div');
@@ -407,10 +405,7 @@ function showToast(message: string, type: ToastType = null, meta: string | null 
 
   const messageEl = createElement('div', 'yt-caption-copier-toast-message', createElement('div', undefined, message));
   if (meta) messageEl.append(createElement('div', 'yt-caption-copier-toast-meta', meta));
-  toast.replaceChildren(
-    createIcon(type === 'warning' ? 'warning' : 'check', 24, type === 'warning' ? 'yt-caption-copier-toast-icon warning' : 'yt-caption-copier-toast-icon'),
-    messageEl
-  );
+  toast.replaceChildren(messageEl);
   toast.classList.add('visible');
 
   if (toastTimeout) clearTimeout(toastTimeout);
