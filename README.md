@@ -9,9 +9,9 @@ Button to copy the active YouTube video captions to the clipboard.
   
 
 
-[![Chrome Web Store: available](https://img.shields.io/badge/Chrome_Web_Store-Available-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/youtube-caption-copier/lcpbcanohhencmphfjhkjooleglipomd?authuser=0&hl=pt-PT)
+[![Chrome Web Store: available](https://img.shields.io/badge/Chrome_Web_Store-Available-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/youtube-caption-copier/lcpbcanohhencmphfjhkjooleglipomd)
  
-![Firefox Add-ons: awaiting review](https://img.shields.io/badge/Firefox_Add--ons-Awaiting_review-9e9e9e?style=for-the-badge&logo=firefoxbrowser&logoColor=white)
+[![Firefox Add-ons: awaiting review](https://img.shields.io/badge/Firefox_Add--ons-Available-4285F4?style=for-the-badge&logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/youtube-caption-copier/)
 
 ## Screenshots
 
