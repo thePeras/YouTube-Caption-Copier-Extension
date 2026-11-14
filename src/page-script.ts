@@ -216,6 +216,18 @@ function matchTrack(tracks: CaptionTrack[], vss: string | null): CaptionTrack | 
   return tracks.find((t) => t.languageCode === lang && (t.kind === 'asr') === isAsr) ?? tracks.find((t) => t.languageCode === lang);
 }
 
+function fetchTrack(track: CaptionTrack, pot: string | null): Promise<Response> {
+  const url = new URL(track.baseUrl, location.origin);
+  url.searchParams.set('fmt', 'json3');
+  if (pot) {
+    url.searchParams.set('c', 'WEB');
+    url.searchParams.set('potc', '1');
+    url.searchParams.set('pot', pot);
+  }
+  ownRequests.add(url.href);
+  return fetch(url.href, { credentials: 'include' });
+}
+
 async function fetchCaptionContent(requestedVss: string | undefined): Promise<ContentResult> {
   try {
     const data = getTrackData();
@@ -230,22 +242,21 @@ async function fetchCaptionContent(requestedVss: string | undefined): Promise<Co
       matchTrack(data.tracks, choice.vss) ??
       (data.defaultIndex !== undefined ? data.tracks[data.defaultIndex] : undefined) ??
       data.tracks[0];
-    const pot = needsPot ? choice.pot : null;
+    let pot = choice.pot;
 
-    const url = new URL(track.baseUrl, location.origin);
-
-    url.searchParams.set('fmt', 'json3');
-    if (pot) {
-      url.searchParams.set('c', 'WEB');
-      url.searchParams.set('potc', '1');
-      url.searchParams.set('pot', pot);
-    }
-
-    ownRequests.add(url.href);
-    const response = await fetch(url.href, { credentials: 'include' });
+    let response = await fetchTrack(track, pot);
     if (!response.ok) return { ok: false, body: '', error: `HTTP ${response.status}` };
-    const body = await response.text();
-    if (!body.trim() && needsPot && !pot) {
+    let body = await response.text();
+    if (!body.trim()) {
+      potByVideo.delete(videoId);
+      pot = (await askPlayer(videoId, true)).pot;
+      if (pot) {
+        response = await fetchTrack(track, pot);
+        if (!response.ok) return { ok: false, body: '', error: `HTTP ${response.status}` };
+        body = await response.text();
+      }
+    }
+    if (!body.trim()) {
       return getPlayer()?.classList.contains('ad-showing')
         ? { ok: false, body: '', errorCode: 'ad', error: 'Captions are unavailable while an ad is playing.' }
         : { ok: false, body: '', errorCode: 'pot', error: 'YouTube did not provide a caption token. Start playing the video and try again.' };
